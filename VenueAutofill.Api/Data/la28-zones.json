@@ -1,0 +1,32 @@
+[
+  {
+    "zoneName": "Inglewood Zone",
+    "keywords": ["Inglewood", "Hollywood Park", "SoFi Stadium", "Intuit Dome"],
+    "bounds": {
+      "minLat": 33.92,
+      "maxLat": 33.98,
+      "minLng": -118.38,
+      "maxLng": -118.32
+    }
+  },
+  {
+    "zoneName": "DTLA Zone",
+    "keywords": ["Downtown Los Angeles", "DTLA", "Crypto.com Arena", "Los Angeles Convention Center", "Figueroa", "Bonaventure"],
+    "bounds": {
+      "minLat": 34.03,
+      "maxLat": 34.07,
+      "minLng": -118.28,
+      "maxLng": -118.24
+    }
+  },
+  {
+    "zoneName": "Carson Zone",
+    "keywords": ["Carson", "Dignity Health Sports Park"],
+    "bounds": {
+      "minLat": 33.81,
+      "maxLat": 33.87,
+      "minLng": -118.29,
+      "maxLng": -118.24
+    }
+  }
+]

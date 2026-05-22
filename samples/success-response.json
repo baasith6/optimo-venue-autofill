@@ -1,0 +1,28 @@
+{
+  "name": "The Westin Bonaventure Hotel & Suites, Los Angeles",
+  "venueType": "Hotel",
+  "rating": 4,
+  "checkInTime": "15:00:00",
+  "checkOutTime": "12:00:00",
+  "amenities": [
+    "Free WiFi",
+    "Outdoor Pool",
+    "Fitness Center",
+    "Restaurant",
+    "Bar",
+    "Room Service",
+    "Business Center",
+    "Conference Rooms",
+    "Parking",
+    "Pet Friendly"
+  ],
+  "description": "Iconic downtown Los Angeles hotel featuring modern accommodations, panoramic city views, multiple dining options, and extensive meeting and event facilities.",
+  "image": "https://example.com/images/westin-bonaventure-los-angeles.jpg",
+  "country": "United States",
+  "location": "DTLA Zone",
+  "latitude": 34.0526,
+  "longitude": -118.2551,
+  "mapUrl": "https://maps.google.com/?q=34.0526,-118.2551",
+  "email": "info@westinbonaventure.com",
+  "phone": "+1-213-624-1000"
+}

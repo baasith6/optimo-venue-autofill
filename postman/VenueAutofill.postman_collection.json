@@ -1,0 +1,63 @@
+{
+  "info": {
+    "name": "Venue Autofill API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5086" },
+    { "key": "apiKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Autofill - Minimal input (venueName, country, city)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Api-Key", "value": "{{apiKey}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"The Westin Bonaventure Hotel & Suites\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\"\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill"
+      }
+    },
+    {
+      "name": "Autofill - With optional source",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"Ocean View Hotel\",\n  \"country\": \"USA\",\n  \"city\": \"Los Angeles\",\n  \"source\": null\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill"
+      }
+    },
+    {
+      "name": "Autofill - Ambiguous (mock)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"ambiguous test venue\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\"\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill"
+      }
+    },
+    {
+      "name": "Confirm selection",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reference\": \"search_20260522_0001\",\n  \"optionId\": \"1\"\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill/confirm"
+      }
+    }
+  ]
+}

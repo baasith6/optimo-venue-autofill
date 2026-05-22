@@ -1,0 +1,9 @@
+{
+  "status": "not_found",
+  "reference": "search_20260522_0002",
+  "message": "No reliable matching venue was found.",
+  "warnings": [
+    "Venue name may be too generic.",
+    "No official source could be verified."
+  ]
+}
