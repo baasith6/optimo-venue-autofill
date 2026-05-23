@@ -15,8 +15,10 @@ public class VenueAutofillService : IVenueAutofillService
     private readonly IVenueDiscoveryService _discovery;
     private readonly IVenueDetailsService _details;
     private readonly IVenueConfidenceService _confidence;
+    private readonly IVenueCrossSourceService _crossSource;
     private readonly IVenueExtractionService _extraction;
     private readonly IAiVenueFormatterService _aiFormatter;
+    private readonly IImageResolverService _imageResolver;
     private readonly IZoneResolverService _zoneResolver;
     private readonly IAmbiguousSearchCache _cache;
     private readonly ILogger<VenueAutofillService> _logger;
@@ -26,8 +28,10 @@ public class VenueAutofillService : IVenueAutofillService
         IVenueDiscoveryService discovery,
         IVenueDetailsService details,
         IVenueConfidenceService confidence,
+        IVenueCrossSourceService crossSource,
         IVenueExtractionService extraction,
         IAiVenueFormatterService aiFormatter,
+        IImageResolverService imageResolver,
         IZoneResolverService zoneResolver,
         IAmbiguousSearchCache cache,
         ILogger<VenueAutofillService> logger)
@@ -36,8 +40,10 @@ public class VenueAutofillService : IVenueAutofillService
         _discovery = discovery;
         _details = details;
         _confidence = confidence;
+        _crossSource = crossSource;
         _extraction = extraction;
         _aiFormatter = aiFormatter;
+        _imageResolver = imageResolver;
         _zoneResolver = zoneResolver;
         _cache = cache;
         _logger = logger;
@@ -48,9 +54,13 @@ public class VenueAutofillService : IVenueAutofillService
         if (_options.UseMocks)
             return MockVenueDataService.ResolveMockAutofill(request);
 
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+        var token = timeoutCts.Token;
+
         try
         {
-            var candidates = (await _discovery.DiscoverAsync(request, cancellationToken)).ToList();
+            var candidates = (await _discovery.DiscoverAsync(request, token)).ToList();
             _logger.LogInformation(
                 "Venue autofill search: {VenueName}, {City}, {Country}, candidates={Count}",
                 request.VenueName, request.City, request.Country, candidates.Count);
@@ -65,7 +75,7 @@ public class VenueAutofillService : IVenueAutofillService
             {
                 ConfidenceDecisionKind.Ambiguous => BuildAmbiguous(request, decision.AmbiguousCandidates),
                 ConfidenceDecisionKind.NotFound => BuildNotFound(request, decision.Warnings),
-                ConfidenceDecisionKind.Success => await EnrichCandidateAsync(request, decision.TopCandidate!, decision.Warnings, cancellationToken),
+                ConfidenceDecisionKind.Success => await EnrichCandidateAsync(request, decision.TopCandidate!, decision.Warnings, token),
                 _ => BuildNotFound(request, ["Unable to evaluate candidates."])
             };
         }
@@ -94,7 +104,7 @@ public class VenueAutofillService : IVenueAutofillService
                 StatusCode = 504,
                 Error = new ErrorResponse
                 {
-                    Message = "Venue autofill timed out waiting for an external provider. Check network access to Google Places and OpenRouter."
+                    Message = "Venue autofill timed out waiting for an external provider. Check network access to Google Places, Custom Search, and OpenRouter."
                 }
             };
         }
@@ -140,8 +150,22 @@ public class VenueAutofillService : IVenueAutofillService
             };
         }
 
-        return await EnrichCandidateAsync(session.OriginalRequest, candidate, [], cancellationToken);
+        var autofillRequest = MergeConfirmRequest(session.OriginalRequest, request);
+        return await EnrichCandidateAsync(autofillRequest, candidate, [], cancellationToken);
     }
+
+    private static VenueAutofillRequest MergeConfirmRequest(VenueAutofillRequest original, VenueAutofillConfirmRequest confirm) =>
+        new()
+        {
+            VenueName = original.VenueName,
+            Country = original.Country,
+            City = original.City,
+            Area = original.Area,
+            VenueType = original.VenueType,
+            RetrievalMode = confirm.RetrievalMode ?? original.RetrievalMode,
+            PlatformId = confirm.PlatformId ?? original.PlatformId,
+            Source = confirm.Source ?? original.Source
+        };
 
     private VenueAutofillOutcome BuildAmbiguous(VenueAutofillRequest request, IReadOnlyList<VenueCandidate> candidates)
     {
@@ -190,12 +214,48 @@ public class VenueAutofillService : IVenueAutofillService
         List<string> warnings,
         CancellationToken cancellationToken)
     {
+        var mode = RetrievalModeHelper.Parse(request.RetrievalMode);
         var detailed = await _details.GetDetailsAsync(candidate, cancellationToken) ?? candidate;
-        var extracted = await _extraction.ExtractAsync(request, detailed, cancellationToken);
-        var (description, amenities) = await _aiFormatter.FormatAsync(request, detailed, extracted, cancellationToken);
+
+        var crossContext = await _crossSource.RunCrossCheckAsync(request, detailed, mode, cancellationToken);
+        if (!_options.EnablePlatformCrossCheck && mode == RetrievalMode.Automatic)
+            warnings.Add("Platform cross-check is disabled; confidence uses Google and official website only.");
+
+        var cseSkipped = crossContext.SourcesChecked.Count(s => s.Status == "skipped" && s.SourceId != "google_places");
+        if (cseSkipped > 0 && _options.EnablePlatformCrossCheck)
+            warnings.Add($"{cseSkipped} booking platform(s) could not be verified (search or probe skipped).");
+
+        _confidence.ApplyPostEnrichmentScore(detailed, crossContext.CrossSourceConsistencyScore);
+
+        var extractionRequest = BuildExtractionRequest(request, mode, crossContext);
+        var extracted = await _extraction.ExtractAsync(extractionRequest, detailed, cancellationToken);
+
+        string description;
+        List<string> amenities;
+        if (mode == RetrievalMode.GooglePlaces)
+        {
+            description = $"Venue identified via Google Places: {detailed.Name} in {detailed.City}, {detailed.Country}.";
+            amenities = [];
+        }
+        else
+        {
+            (description, amenities) = await _aiFormatter.FormatAsync(extractionRequest, detailed, extracted, cancellationToken);
+        }
 
         var photoUrl = await _details.GetPhotoUrlAsync(detailed.PhotoName, cancellationToken);
-        var image = extracted.ImageUrl ?? photoUrl ?? string.Empty;
+        var officialImage = crossContext.Probes.FirstOrDefault(p => p.SourceId == "official_website")?.ImageUrl;
+        var userImage = crossContext.Probes.FirstOrDefault(p => p.SourceId == "user_source")?.ImageUrl;
+
+        var (image, imageSource, imageCandidates, imageWarnings) = _imageResolver.Resolve(
+            request,
+            mode,
+            detailed,
+            crossContext,
+            photoUrl,
+            officialImage ?? extracted.ImageUrl,
+            userImage);
+
+        warnings.AddRange(imageWarnings);
 
         var hasEffectiveType = VenueTypeHelper.TryResolveEffectiveType(request, detailed, out var venueType, out var venueTypeDisplay);
         var isHotel = hasEffectiveType && venueType == VenueType.Hotel;
@@ -207,7 +267,7 @@ public class VenueAutofillService : IVenueAutofillService
             warnings.Add("LA28 zone could not be resolved; using city as location fallback.");
         }
 
-        if (isHotel)
+        if (isHotel && mode != RetrievalMode.GooglePlaces)
         {
             if (string.IsNullOrWhiteSpace(extracted.CheckInTime))
                 warnings.Add("Check-in time not found on source website.");
@@ -217,9 +277,27 @@ public class VenueAutofillService : IVenueAutofillService
                 warnings.Add("Amenities not found on source website.");
         }
 
-        var enrichment = new EnrichmentResult
+        var sourceUsed = !string.IsNullOrWhiteSpace(extracted.SourceUrl)
+            ? extracted.SourceUrl
+            : crossContext.Probes.FirstOrDefault(p => p.SourceId == request.PlatformId)?.Url
+              ?? detailed.Website;
+
+        var breakdown = detailed.ConfidenceBreakdown is not null
+            ? _confidence.ToBreakdownResponse(detailed.ConfidenceBreakdown)
+            : null;
+
+        _logger.LogInformation(
+            "Venue enriched: {Name}, confidence={Score}, source={Source}, platformsChecked={Count}, warnings={Warnings}",
+            detailed.Name,
+            detailed.ConfidenceScore,
+            sourceUsed,
+            crossContext.SourcesChecked.Count,
+            string.Join("; ", warnings));
+
+        return new VenueAutofillOutcome
         {
-            Response = new VenueAutofillStandardResponse
+            Kind = VenueAutofillOutcomeKind.Success,
+            Success = new VenueAutofillStandardResponse
             {
                 Name = $"{detailed.Name}, {detailed.City}",
                 VenueType = venueTypeDisplay,
@@ -238,24 +316,39 @@ public class VenueAutofillService : IVenueAutofillService
                 Phone = detailed.Phone
             },
             ConfidenceScore = detailed.ConfidenceScore,
-            SourceUsed = !string.IsNullOrWhiteSpace(extracted.SourceUrl) ? extracted.SourceUrl : detailed.Website,
+            ConfidenceBreakdown = breakdown,
+            SourceUsed = sourceUsed,
+            ImageSource = imageSource,
+            ImageCandidates = imageCandidates,
+            SourcesChecked = crossContext.SourcesChecked,
             Warnings = warnings
         };
+    }
 
-        _logger.LogInformation(
-            "Venue enriched: {Name}, confidence={Score}, source={Source}, warnings={Warnings}",
-            enrichment.Response.Name,
-            enrichment.ConfidenceScore,
-            enrichment.SourceUsed,
-            string.Join("; ", enrichment.Warnings));
+    private static VenueAutofillRequest BuildExtractionRequest(
+        VenueAutofillRequest request,
+        RetrievalMode mode,
+        CrossSourceEnrichmentContext crossContext)
+    {
+        if (mode != RetrievalMode.BookingPlatform)
+            return request;
 
-        return new VenueAutofillOutcome
+        var platformUrl = crossContext.Probes
+            .FirstOrDefault(p => p.SourceId.Equals(request.PlatformId, StringComparison.OrdinalIgnoreCase))?.Url;
+
+        if (string.IsNullOrWhiteSpace(platformUrl))
+            return request;
+
+        return new VenueAutofillRequest
         {
-            Kind = VenueAutofillOutcomeKind.Success,
-            Success = enrichment.Response,
-            ConfidenceScore = enrichment.ConfidenceScore,
-            SourceUsed = enrichment.SourceUsed,
-            Warnings = enrichment.Warnings
+            VenueName = request.VenueName,
+            Country = request.Country,
+            City = request.City,
+            Area = request.Area,
+            VenueType = request.VenueType,
+            RetrievalMode = request.RetrievalMode,
+            PlatformId = request.PlatformId,
+            Source = platformUrl
         };
     }
 }

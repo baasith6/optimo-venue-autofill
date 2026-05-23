@@ -63,7 +63,11 @@ public class WebsiteExtractionProvider : IVenueExtractionService
         VenueCandidate candidate,
         CancellationToken cancellationToken = default)
     {
-        var urls = BuildSourceUrls(request, candidate);
+        var mode = RetrievalModeHelper.Parse(request.RetrievalMode);
+        if (mode == RetrievalMode.GooglePlaces)
+            return new VenueExtractedData();
+
+        var urls = BuildSourceUrls(request, candidate, mode);
         var result = new VenueExtractedData();
         var aggregatedText = new StringBuilder();
 
@@ -112,23 +116,36 @@ public class WebsiteExtractionProvider : IVenueExtractionService
         return result;
     }
 
-    private List<string> BuildSourceUrls(VenueAutofillRequest request, VenueCandidate candidate)
+    private List<string> BuildSourceUrls(VenueAutofillRequest request, VenueCandidate candidate, RetrievalMode mode)
     {
         var urls = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(request.Source))
-            urls.Add(request.Source!);
-
-        if (!string.IsNullOrWhiteSpace(candidate.Website))
-            urls.Add(candidate.Website);
-
-        // Trusted-chain sites (e.g. marriott.com) are already covered via candidate.Website from Google.
-        // Re-order so trusted official hotel sites are tried before any secondary URL.
-        if (!string.IsNullOrWhiteSpace(candidate.Website)
-            && _trustedDomains.Any(d => candidate.Website.Contains(d, StringComparison.OrdinalIgnoreCase)))
+        switch (mode)
         {
-            urls.Remove(candidate.Website);
-            urls.Insert(string.IsNullOrWhiteSpace(request.Source) ? 0 : 1, candidate.Website);
+            case RetrievalMode.CustomSource:
+                if (!string.IsNullOrWhiteSpace(request.Source))
+                    urls.Add(request.Source!);
+                break;
+            case RetrievalMode.OfficialWebsite:
+                if (!string.IsNullOrWhiteSpace(candidate.Website))
+                    urls.Add(candidate.Website);
+                break;
+            case RetrievalMode.BookingPlatform:
+                if (!string.IsNullOrWhiteSpace(request.Source))
+                    urls.Add(request.Source!);
+                break;
+            default:
+                if (!string.IsNullOrWhiteSpace(request.Source))
+                    urls.Add(request.Source!);
+                if (!string.IsNullOrWhiteSpace(candidate.Website))
+                    urls.Add(candidate.Website);
+                if (!string.IsNullOrWhiteSpace(candidate.Website)
+                    && _trustedDomains.Any(d => candidate.Website.Contains(d, StringComparison.OrdinalIgnoreCase)))
+                {
+                    urls.Remove(candidate.Website);
+                    urls.Insert(string.IsNullOrWhiteSpace(request.Source) ? 0 : 1, candidate.Website);
+                }
+                break;
         }
 
         return urls.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

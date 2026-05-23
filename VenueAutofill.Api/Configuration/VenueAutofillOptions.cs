@@ -15,4 +15,9 @@ public class VenueAutofillOptions
     public bool RequireApiKey { get; set; }
     public int RateLimitPermitLimit { get; set; } = 60;
     public int RateLimitWindowSeconds { get; set; } = 60;
+    public bool EnablePlatformCrossCheck { get; set; } = true;
+    public int MaxPlatformDiscoveryCount { get; set; } = 8;
+    public int PlatformProbeTimeoutSeconds { get; set; } = 8;
+    public int MaxConcurrentProbes { get; set; } = 4;
+    public int RequestTimeoutSeconds { get; set; } = 45;
 }

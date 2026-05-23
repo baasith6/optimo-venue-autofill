@@ -35,7 +35,42 @@ public static class MockVenueDataService
                 Phone = "+1-213-624-1000"
             },
             ConfidenceScore = 94,
+            ConfidenceBreakdown = new ConfidenceBreakdownResponse
+            {
+                NameMatch = 28,
+                LocationMatch = 22,
+                VenueTypeMatch = 8,
+                SourceReliability = 9,
+                DataCompleteness = 8,
+                CrossSourceConsistency = 13
+            },
             SourceUsed = "https://www.marriott.com/en-us/hotels/laxwb-the-westin-bonaventure-hotel-and-suites/overview/",
+            ImageSource = new ImageSourceInfo
+            {
+                SourceId = "official_website",
+                Label = "Official website",
+                Url = "https://example.com/images/westin-bonaventure-los-angeles.jpg"
+            },
+            SourcesChecked =
+            [
+                new SourceCheckResult
+                {
+                    SourceId = "google_places",
+                    Label = "Google Places",
+                    Status = "matched",
+                    Score = 94,
+                    MatchedFields = ["name", "city", "country"]
+                },
+                new SourceCheckResult
+                {
+                    SourceId = "booking.com",
+                    Label = "Booking.com",
+                    Url = "https://www.booking.com/hotel/example",
+                    Status = "matched",
+                    Score = 82,
+                    MatchedFields = ["name", "city"]
+                }
+            ],
             Warnings = []
         };
     }

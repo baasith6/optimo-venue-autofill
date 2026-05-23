@@ -5,6 +5,7 @@ using VenueAutofill.Api.Configuration;
 using VenueAutofill.Api.Contracts;
 using VenueAutofill.Api.Contracts.Internal;
 using VenueAutofill.Api.Contracts.Requests;
+using VenueAutofill.Api.Contracts.Responses;
 
 namespace VenueAutofill.Api.Application.Services;
 
@@ -26,13 +27,33 @@ public class VenueConfidenceService : IVenueConfidenceService
                 VenueTypeMatch = ScoreVenueType(request, candidate),
                 SourceReliability = ScoreSourceReliability(request, candidate),
                 DataCompleteness = ScoreCompleteness(candidate),
-                CrossSourceConsistency = 8
+                CrossSourceConsistency = 5
             };
 
             candidate.ConfidenceBreakdown = breakdown;
             candidate.ConfidenceScore = Math.Clamp(breakdown.Total, 0, 100);
         }
     }
+
+    public void ApplyPostEnrichmentScore(VenueCandidate candidate, int crossSourceConsistency)
+    {
+        if (candidate.ConfidenceBreakdown is null)
+            return;
+
+        candidate.ConfidenceBreakdown.CrossSourceConsistency = Math.Clamp(crossSourceConsistency, 0, 15);
+        candidate.ConfidenceScore = Math.Clamp(candidate.ConfidenceBreakdown.Total, 0, 100);
+    }
+
+    public ConfidenceBreakdownResponse ToBreakdownResponse(ConfidenceBreakdown breakdown) =>
+        new()
+        {
+            NameMatch = breakdown.NameMatch,
+            LocationMatch = breakdown.LocationMatch,
+            VenueTypeMatch = breakdown.VenueTypeMatch,
+            SourceReliability = breakdown.SourceReliability,
+            DataCompleteness = breakdown.DataCompleteness,
+            CrossSourceConsistency = breakdown.CrossSourceConsistency
+        };
 
     public ConfidenceDecision Evaluate(IReadOnlyList<VenueCandidate> rankedCandidates)
     {

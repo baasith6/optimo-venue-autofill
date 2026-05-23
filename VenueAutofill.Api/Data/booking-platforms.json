@@ -1,0 +1,16 @@
+[
+  { "platformId": "booking.com", "domain": "booking.com", "label": "Booking.com", "probeEnabled": true },
+  { "platformId": "expedia.com", "domain": "expedia.com", "label": "Expedia", "probeEnabled": true },
+  { "platformId": "agoda.com", "domain": "agoda.com", "label": "Agoda", "probeEnabled": true },
+  { "platformId": "hotels.com", "domain": "hotels.com", "label": "Hotels.com", "probeEnabled": true },
+  { "platformId": "airbnb.com", "domain": "airbnb.com", "label": "Airbnb", "probeEnabled": true },
+  { "platformId": "trip.com", "domain": "trip.com", "label": "Trip.com", "probeEnabled": true },
+  { "platformId": "vrbo.com", "domain": "vrbo.com", "label": "Vrbo", "probeEnabled": true },
+  { "platformId": "tripadvisor.com", "domain": "tripadvisor.com", "label": "Tripadvisor", "probeEnabled": true },
+  { "platformId": "makemytrip.com", "domain": "makemytrip.com", "label": "MakeMyTrip", "probeEnabled": true },
+  { "platformId": "traveloka.com", "domain": "traveloka.com", "label": "Traveloka", "probeEnabled": true },
+  { "platformId": "hostelworld.com", "domain": "hostelworld.com", "label": "Hostelworld", "probeEnabled": true },
+  { "platformId": "kayak.com", "domain": "kayak.com", "label": "Kayak", "probeEnabled": false },
+  { "platformId": "trivago.com", "domain": "trivago.com", "label": "Trivago", "probeEnabled": false },
+  { "platformId": "google_hotels", "domain": "google.com", "label": "Google Hotels", "probeEnabled": false }
+]

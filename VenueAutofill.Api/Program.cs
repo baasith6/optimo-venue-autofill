@@ -7,6 +7,7 @@ using VenueAutofill.Api.Application.Services;
 using VenueAutofill.Api.Configuration;
 using VenueAutofill.Api.Contracts.Requests;
 using VenueAutofill.Api.Infrastructure.Caching;
+using VenueAutofill.Api.Infrastructure.Data;
 using VenueAutofill.Api.Infrastructure.Http;
 using VenueAutofill.Api.Infrastructure.Providers;
 using VenueAutofill.Api.Middleware;
@@ -22,14 +23,18 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.Configure<GooglePlacesOptions>(builder.Configuration.GetSection(GooglePlacesOptions.SectionName));
+builder.Services.Configure<GoogleCustomSearchOptions>(builder.Configuration.GetSection(GoogleCustomSearchOptions.SectionName));
 builder.Services.Configure<AiOptions>(builder.Configuration.GetSection(AiOptions.SectionName));
 builder.Services.Configure<VenueAutofillOptions>(builder.Configuration.GetSection(VenueAutofillOptions.SectionName));
 
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<UrlSafetyValidator>();
 builder.Services.AddSingleton<SourceRelevanceValidator>();
+builder.Services.AddSingleton<BookingPlatformRegistry>();
 builder.Services.AddScoped<IAmbiguousSearchCache, MemoryAmbiguousSearchCache>();
 builder.Services.AddScoped<IVenueConfidenceService, VenueConfidenceService>();
+builder.Services.AddScoped<IVenueCrossSourceService, VenueCrossSourceService>();
+builder.Services.AddScoped<IImageResolverService, ImageResolverService>();
 builder.Services.AddScoped<IZoneResolverService, ZoneResolverService>();
 builder.Services.AddScoped<IVenueAutofillService, VenueAutofillService>();
 
@@ -47,7 +52,15 @@ builder.Services.AddHttpClient<WebsiteExtractionProvider>(client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("VenueAutofillBot/1.0");
 });
 builder.Services.AddHttpClient<OpenRouterAiProvider>(client => client.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.AddHttpClient<GoogleCustomSearchProvider>(client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient<ListingProbeService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("VenueAutofillBot/1.0");
+});
 
+builder.Services.AddScoped<IGoogleCustomSearchService>(sp => sp.GetRequiredService<GoogleCustomSearchProvider>());
+builder.Services.AddScoped<IListingProbeService>(sp => sp.GetRequiredService<ListingProbeService>());
 builder.Services.AddScoped<IVenueDiscoveryService>(sp => sp.GetRequiredService<GooglePlacesProvider>());
 builder.Services.AddScoped<IVenueDetailsService>(sp => sp.GetRequiredService<GooglePlacesProvider>());
 builder.Services.AddScoped<IVenueExtractionService, WebsiteExtractionProvider>();
@@ -73,12 +86,15 @@ var app = builder.Build();
 
 var venueOpts = app.Configuration.GetSection(VenueAutofillOptions.SectionName).Get<VenueAutofillOptions>() ?? new();
 var googleKey = app.Configuration["GooglePlaces:ApiKey"];
+var cseKey = app.Configuration["GoogleCustomSearch:ApiKey"];
 var aiKey = app.Configuration["AI:ApiKey"];
 app.Logger.LogInformation(
-    "Venue Autofill startup: UseMocks={UseMocks}, GooglePlacesKeyConfigured={HasGoogle}, OpenRouterKeyConfigured={HasAi}",
+    "Venue Autofill startup: UseMocks={UseMocks}, GooglePlacesKeyConfigured={HasGoogle}, CustomSearchConfigured={HasCse}, OpenRouterKeyConfigured={HasAi}, PlatformCrossCheck={CrossCheck}",
     venueOpts.UseMocks,
     !string.IsNullOrWhiteSpace(googleKey),
-    !string.IsNullOrWhiteSpace(aiKey));
+    !string.IsNullOrWhiteSpace(cseKey),
+    !string.IsNullOrWhiteSpace(aiKey),
+    venueOpts.EnablePlatformCrossCheck);
 if (venueOpts.UseMocks)
     app.Logger.LogWarning("UseMocks is enabled — responses are hardcoded sample data, not from Google Places.");
 

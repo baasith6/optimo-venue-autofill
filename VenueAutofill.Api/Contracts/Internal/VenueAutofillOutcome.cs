@@ -20,6 +20,10 @@ public class VenueAutofillOutcome
     public int StatusCode { get; set; } = 200;
 
     public int? ConfidenceScore { get; set; }
+    public ConfidenceBreakdownResponse? ConfidenceBreakdown { get; set; }
     public string? SourceUsed { get; set; }
+    public ImageSourceInfo? ImageSource { get; set; }
+    public List<string> ImageCandidates { get; set; } = [];
+    public List<SourceCheckResult> SourcesChecked { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
 }
