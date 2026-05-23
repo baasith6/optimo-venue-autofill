@@ -24,15 +24,59 @@
       }
     },
     {
-      "name": "Autofill - With optional source",
+      "name": "Autofill - With confidence metadata",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Api-Key", "value": "{{apiKey}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"The Westin Bonaventure Hotel & Suites\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\",\n  \"retrievalMode\": \"automatic\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/venue-autofill?includeConfidence=true",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "venue-autofill"],
+          "query": [{ "key": "includeConfidence", "value": "true" }]
+        }
+      }
+    },
+    {
+      "name": "Autofill - Booking.com platform",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"venueName\": \"Ocean View Hotel\",\n  \"country\": \"USA\",\n  \"city\": \"Los Angeles\",\n  \"source\": null\n}"
+          "raw": "{\n  \"venueName\": \"The Westin Bonaventure Hotel & Suites\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\",\n  \"retrievalMode\": \"bookingPlatform\",\n  \"platformId\": \"booking.com\"\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill?includeConfidence=true"
+      }
+    },
+    {
+      "name": "Autofill - Google Places only",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"The Westin Bonaventure Hotel & Suites\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\",\n  \"retrievalMode\": \"googlePlaces\"\n}"
         },
         "url": "{{baseUrl}}/api/venue-autofill"
+      }
+    },
+    {
+      "name": "Autofill - Custom source URL",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"venueName\": \"The Westin Bonaventure Hotel & Suites\",\n  \"country\": \"United States\",\n  \"city\": \"Los Angeles\",\n  \"retrievalMode\": \"customSource\",\n  \"source\": \"https://www.marriott.com/en-us/hotels/laxwb-the-westin-bonaventure-hotel-and-suites/overview/\"\n}"
+        },
+        "url": "{{baseUrl}}/api/venue-autofill?includeConfidence=true"
       }
     },
     {
@@ -54,9 +98,9 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"reference\": \"search_20260522_0001\",\n  \"optionId\": \"1\"\n}"
+          "raw": "{\n  \"reference\": \"search_20260522_0001\",\n  \"optionId\": \"1\",\n  \"retrievalMode\": \"automatic\"\n}"
         },
-        "url": "{{baseUrl}}/api/venue-autofill/confirm"
+        "url": "{{baseUrl}}/api/venue-autofill/confirm?includeConfidence=true"
       }
     }
   ]
