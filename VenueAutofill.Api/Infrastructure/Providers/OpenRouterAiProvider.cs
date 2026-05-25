@@ -15,17 +15,20 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
     private readonly HttpClient _httpClient;
     private readonly AiOptions _options;
     private readonly VenueAutofillOptions _venueOptions;
+    private readonly IAmenityNormalizationService _amenityNormalizer;
     private readonly ILogger<OpenRouterAiProvider> _logger;
 
     public OpenRouterAiProvider(
         HttpClient httpClient,
         IOptions<AiOptions> options,
         IOptions<VenueAutofillOptions> venueOptions,
+        IAmenityNormalizationService amenityNormalizer,
         ILogger<OpenRouterAiProvider> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
         _venueOptions = venueOptions.Value;
+        _amenityNormalizer = amenityNormalizer;
         _logger = logger;
     }
 
@@ -35,10 +38,11 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
         VenueExtractedData extracted,
         CancellationToken cancellationToken = default)
     {
-        var amenities = NormalizeAmenities(extracted.Amenities);
+        var amenities = _amenityNormalizer.Normalize(extracted.Amenities, extracted.RawText);
         var typeLabel = VenueTypeHelper.TryResolveEffectiveType(request, candidate, out _, out var display)
             ? display ?? "unknown"
             : "unknown";
+        var canonicalList = string.Join(", ", _amenityNormalizer.CanonicalLabels);
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey))
             return (BuildFallbackDescription(candidate, extracted), amenities);
@@ -48,6 +52,8 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
             var prompt = $"""
                 Convert the extracted venue text into JSON with fields: description (max {_venueOptions.DescriptionMaxWords} words), amenities (array of strings).
                 Use ONLY the provided source text. Do not invent missing data.
+                Amenities MUST use only these canonical labels when supported by the source text (near matches OK):
+                {canonicalList}
                 Venue: {candidate.Name}
                 Type: {typeLabel}
                 Source text:
@@ -60,7 +66,7 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
                 model = _options.Model,
                 messages = new[]
                 {
-                    new { role = "system", content = "You format venue data. Return valid JSON only: {\"description\":\"...\",\"amenities\":[\"...\"]}" },
+                    new { role = "system", content = "You format venue data. Return valid JSON only: {\"description\":\"...\",\"amenities\":[\"...\"]}. Amenities must be from the canonical list provided." },
                     new { role = "user", content = prompt }
                 },
                 temperature = 0.2
@@ -68,7 +74,7 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
 
             var url = $"{_options.BaseUrl.TrimEnd('/')}/chat/completions";
             using var httpRequest = new HttpRequestMessage(HttpMethod.Post, url);
-            httpRequest.Headers.Add("Authorization", $"Bearer {_options.ApiKey}");
+            httpRequest.Headers.Add("Authorization", $"Bearer {_options.ApiKey.Trim()}");
             httpRequest.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
@@ -95,9 +101,8 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
                 return (BuildFallbackDescription(candidate, extracted), amenities);
 
             var description = formatted.Description ?? BuildFallbackDescription(candidate, extracted);
-            var mergedAmenities = formatted.Amenities?.Count > 0
-                ? NormalizeAmenities(formatted.Amenities)
-                : amenities;
+            var mergedHints = (formatted.Amenities ?? []).Concat(extracted.Amenities);
+            var mergedAmenities = _amenityNormalizer.Normalize(mergedHints, extracted.RawText);
 
             return (TruncateWords(description, _venueOptions.DescriptionMaxWords), mergedAmenities);
         }
@@ -106,29 +111,6 @@ public class OpenRouterAiProvider : IAiVenueFormatterService
             _logger.LogWarning(ex, "AI formatting failed");
             return (BuildFallbackDescription(candidate, extracted), amenities);
         }
-    }
-
-    private List<string> NormalizeAmenities(IEnumerable<string> raw)
-    {
-        var mapPath = Path.Combine(AppContext.BaseDirectory, "Data", "amenities-map.json");
-        Dictionary<string, string>? map = null;
-        if (File.Exists(mapPath))
-        {
-            var json = File.ReadAllText(mapPath);
-            map = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-        }
-
-        var result = new List<string>();
-        foreach (var item in raw)
-        {
-            var key = item.Trim().ToLowerInvariant();
-            if (map is not null && map.TryGetValue(key, out var normalized))
-                result.Add(normalized);
-            else if (!string.IsNullOrWhiteSpace(item))
-                result.Add(char.ToUpper(item[0]) + item[1..]);
-        }
-
-        return result.Distinct(StringComparer.OrdinalIgnoreCase).Take(15).ToList();
     }
 
     private static string BuildFallbackDescription(VenueCandidate candidate, VenueExtractedData extracted)

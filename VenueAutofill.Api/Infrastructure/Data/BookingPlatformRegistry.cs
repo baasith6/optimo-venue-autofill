@@ -5,13 +5,18 @@ namespace VenueAutofill.Api.Infrastructure.Data;
 
 public class BookingPlatformRegistry
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly IReadOnlyList<BookingPlatformEntry> _platforms;
 
     public BookingPlatformRegistry(IHostEnvironment environment)
     {
         var path = Path.Combine(environment.ContentRootPath, "Data", "booking-platforms.json");
         _platforms = File.Exists(path)
-            ? JsonSerializer.Deserialize<List<BookingPlatformEntry>>(File.ReadAllText(path)) ?? []
+            ? JsonSerializer.Deserialize<List<BookingPlatformEntry>>(File.ReadAllText(path), JsonOptions) ?? []
             : [];
     }
 

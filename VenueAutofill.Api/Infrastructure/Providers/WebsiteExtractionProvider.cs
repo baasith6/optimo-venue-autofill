@@ -8,7 +8,9 @@ using VenueAutofill.Api.Configuration;
 using VenueAutofill.Api.Contracts;
 using VenueAutofill.Api.Contracts.Internal;
 using VenueAutofill.Api.Contracts.Requests;
+using VenueAutofill.Api.Infrastructure.Browser;
 using VenueAutofill.Api.Infrastructure.Http;
+using VenueAutofill.Api.Infrastructure.Schema;
 
 namespace VenueAutofill.Api.Infrastructure.Providers;
 
@@ -28,10 +30,11 @@ public class WebsiteExtractionProvider : IVenueExtractionService
 
     private static readonly string[] FollowLinkKeywords =
     [
-        "amenit", "facilit", "policy", "policies", "room", "hotel", "about", "overview", "services"
+        "amenit", "facilit", "policy", "policies", "room", "hotel", "about", "overview", "services",
+        "check-in", "check-out", "checkin", "checkout", "arrival", "departure"
     ];
 
-    private readonly HttpClient _httpClient;
+    private readonly IHtmlPageFetcher _pageFetcher;
     private readonly UrlSafetyValidator _urlSafetyValidator;
     private readonly SourceRelevanceValidator _relevanceValidator;
     private readonly VenueAutofillOptions _options;
@@ -39,14 +42,14 @@ public class WebsiteExtractionProvider : IVenueExtractionService
     private readonly ILogger<WebsiteExtractionProvider> _logger;
 
     public WebsiteExtractionProvider(
-        HttpClient httpClient,
+        IHtmlPageFetcher pageFetcher,
         UrlSafetyValidator urlSafetyValidator,
         SourceRelevanceValidator relevanceValidator,
         IOptions<VenueAutofillOptions> options,
         IHostEnvironment environment,
         ILogger<WebsiteExtractionProvider> logger)
     {
-        _httpClient = httpClient;
+        _pageFetcher = pageFetcher;
         _urlSafetyValidator = urlSafetyValidator;
         _relevanceValidator = relevanceValidator;
         _options = options.Value;
@@ -168,23 +171,30 @@ public class WebsiteExtractionProvider : IVenueExtractionService
 
             try
             {
-                var html = await _httpClient.GetStringAsync(url, cancellationToken);
+                var fetch = await _pageFetcher.FetchAsync(url, cancellationToken);
+                if (!fetch.Succeeded || string.IsNullOrWhiteSpace(fetch.Html))
+                {
+                    _logger.LogWarning("Extraction fetch failed for {Url}, via={Via}", url, fetch.FetchedVia);
+                    continue;
+                }
+
                 var doc = new HtmlDocument();
-                doc.LoadHtml(html);
+                doc.LoadHtml(fetch.Html);
 
                 var pageText = CleanText(doc.DocumentNode.InnerText);
                 combined.Append(' ').Append(pageText);
 
-                extract.CheckInTime ??= ParseTime(CheckInRegex, pageText) ?? ParseSchemaCheckTime(html, "checkinTime");
-                extract.CheckOutTime ??= ParseTime(CheckOutRegex, pageText) ?? ParseSchemaCheckTime(html, "checkoutTime");
+                var schema = SchemaOrgHotelParser.ParseFromHtml(fetch.Html);
+                extract.CheckInTime ??= ParseTime(CheckInRegex, pageText) ?? schema.CheckInTime;
+                extract.CheckOutTime ??= ParseTime(CheckOutRegex, pageText) ?? schema.CheckOutTime;
                 if (string.IsNullOrWhiteSpace(extract.Email))
                     extract.Email = EmailRegex.Match(pageText).Value;
                 extract.Amenities = extract.Amenities.Union(ExtractAmenityKeywords(pageText)).ToList();
-                extract.ImageUrl ??= FindBestImage(doc, url);
+                extract.ImageUrl ??= FindBestImage(doc, fetch.FinalUrl) ?? schema.ImageUrl;
 
                 if (visited.Count < _options.MaxExtractionPages)
                 {
-                    foreach (var link in CollectRelevantLinks(doc, url))
+                    foreach (var link in CollectRelevantLinks(doc, fetch.FinalUrl))
                     {
                         if (!visited.Contains(link) && !queue.Contains(link))
                             queue.Enqueue(link);
@@ -227,6 +237,21 @@ public class WebsiteExtractionProvider : IVenueExtractionService
 
     private static string? FindBestImage(HtmlDocument doc, string baseUrl)
     {
+        var meta = doc.DocumentNode.SelectNodes("//meta[@property='og:image' or @name='twitter:image']");
+        if (meta is not null)
+        {
+            foreach (var node in meta)
+            {
+                var content = node.GetAttributeValue("content", "");
+                if (string.IsNullOrWhiteSpace(content))
+                    continue;
+                if (Uri.TryCreate(content, UriKind.Absolute, out var abs))
+                    return abs.ToString();
+                if (Uri.TryCreate(new Uri(baseUrl), content, out var rel))
+                    return rel.ToString();
+            }
+        }
+
         var nodes = doc.DocumentNode.SelectNodes("//img[@src]") ?? Enumerable.Empty<HtmlNode>();
         foreach (var img in nodes)
         {
@@ -243,31 +268,12 @@ public class WebsiteExtractionProvider : IVenueExtractionService
         return null;
     }
 
-    private static string? ParseSchemaCheckTime(string html, string property)
-    {
-        var match = Regex.Match(html, $"\"{property}\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase);
-        if (!match.Success)
-            return null;
-        return NormalizeTimeString(match.Groups[1].Value);
-    }
-
     private static string? ParseTime(Regex regex, string text)
     {
         var match = regex.Match(text);
         if (!match.Success)
             return null;
-        return NormalizeTimeString(match.Groups[1].Value.Trim());
-    }
-
-    private static string? NormalizeTimeString(string raw)
-    {
-        if (TimeSpan.TryParse(raw, out var ts))
-            return ts.ToString(@"hh\:mm\:ss");
-
-        if (DateTime.TryParse(raw, out var dt))
-            return dt.ToString("HH:mm:ss");
-
-        return raw.Contains(':') ? raw : null;
+        return SchemaOrgHotelParser.NormalizeTimeString(match.Groups[1].Value.Trim());
     }
 
     private static string CleanText(string text) =>

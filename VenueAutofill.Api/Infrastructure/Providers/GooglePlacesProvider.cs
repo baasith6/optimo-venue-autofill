@@ -50,7 +50,7 @@ public class GooglePlacesProvider : IVenueDiscoveryService, IVenueDetailsService
             Version = HttpVersion.Version11,
             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
         };
-        httpRequest.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
+        httpRequest.Headers.Add("X-Goog-Api-Key", _options.ApiKey.Trim());
         httpRequest.Headers.Add("X-Goog-FieldMask", TextSearchFieldMask);
         httpRequest.Content = new StringContent(
             JsonSerializer.Serialize(new
@@ -109,7 +109,7 @@ public class GooglePlacesProvider : IVenueDiscoveryService, IVenueDetailsService
         var placeId = NormalizePlaceId(candidate.PlaceId);
         var url = $"{_options.BaseUrl.TrimEnd('/')}/places/{Uri.EscapeDataString(placeId)}";
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
-        httpRequest.Headers.Add("X-Goog-Api-Key", _options.ApiKey);
+        httpRequest.Headers.Add("X-Goog-Api-Key", _options.ApiKey.Trim());
         httpRequest.Headers.Add("X-Goog-FieldMask", DetailsFieldMask);
 
         var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
@@ -137,7 +137,7 @@ public class GooglePlacesProvider : IVenueDiscoveryService, IVenueDetailsService
         if (!mediaPath.StartsWith("places/", StringComparison.Ordinal))
             mediaPath = $"places/{mediaPath}";
 
-        var url = $"{_options.BaseUrl.TrimEnd('/')}/{mediaPath}/media?maxHeightPx=800&key={Uri.EscapeDataString(_options.ApiKey)}";
+        var url = $"{_options.BaseUrl.TrimEnd('/')}/{mediaPath}/media?maxWidthPx=1200&maxHeightPx=800&key={Uri.EscapeDataString(_options.ApiKey.Trim())}";
         return Task.FromResult<string?>(url);
     }
 

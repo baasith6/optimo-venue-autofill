@@ -5,7 +5,7 @@ namespace VenueAutofill.Api.Application.Interfaces;
 
 public interface IGoogleCustomSearchService
 {
-    Task<string?> FindListingUrlAsync(
+    Task<CseSearchResult> FindListingAsync(
         VenueAutofillRequest request,
         BookingPlatformEntry platform,
         CancellationToken cancellationToken = default);

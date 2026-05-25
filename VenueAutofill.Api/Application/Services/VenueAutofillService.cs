@@ -5,6 +5,7 @@ using VenueAutofill.Api.Contracts;
 using VenueAutofill.Api.Contracts.Internal;
 using VenueAutofill.Api.Contracts.Requests;
 using VenueAutofill.Api.Contracts.Responses;
+using VenueAutofill.Api.Infrastructure.Http;
 using VenueAutofill.Api.Infrastructure.Providers;
 
 namespace VenueAutofill.Api.Application.Services;
@@ -19,7 +20,9 @@ public class VenueAutofillService : IVenueAutofillService
     private readonly IVenueExtractionService _extraction;
     private readonly IAiVenueFormatterService _aiFormatter;
     private readonly IImageResolverService _imageResolver;
+    private readonly IImageNormalizationService _imageNormalizer;
     private readonly IZoneResolverService _zoneResolver;
+    private readonly IHotelTimesInferenceService _hotelTimesInference;
     private readonly IAmbiguousSearchCache _cache;
     private readonly ILogger<VenueAutofillService> _logger;
 
@@ -32,7 +35,9 @@ public class VenueAutofillService : IVenueAutofillService
         IVenueExtractionService extraction,
         IAiVenueFormatterService aiFormatter,
         IImageResolverService imageResolver,
+        IImageNormalizationService imageNormalizer,
         IZoneResolverService zoneResolver,
+        IHotelTimesInferenceService hotelTimesInference,
         IAmbiguousSearchCache cache,
         ILogger<VenueAutofillService> logger)
     {
@@ -44,7 +49,9 @@ public class VenueAutofillService : IVenueAutofillService
         _extraction = extraction;
         _aiFormatter = aiFormatter;
         _imageResolver = imageResolver;
+        _imageNormalizer = imageNormalizer;
         _zoneResolver = zoneResolver;
+        _hotelTimesInference = hotelTimesInference;
         _cache = cache;
         _logger = logger;
     }
@@ -221,8 +228,19 @@ public class VenueAutofillService : IVenueAutofillService
         if (!_options.EnablePlatformCrossCheck && mode == RetrievalMode.Automatic)
             warnings.Add("Platform cross-check is disabled; confidence uses Google and official website only.");
 
+        var officialProbe = crossContext.Probes.FirstOrDefault(p => p.SourceId == "official_website");
+        if (officialProbe is { PageFetched: true, FetchedVia: "playwright" })
+            warnings.Add("Official website fetched via browser fallback (simple HTTP was blocked).");
+        else if (officialProbe is { PageFetched: false } && !string.IsNullOrWhiteSpace(officialProbe.Url))
+            warnings.Add("Official website could not be fetched (bot protection blocked HTTP and browser fallback).");
+
+        var cseForbidden = crossContext.SourcesChecked.Count(s => s.SkipReason == "cse_forbidden");
+        if (cseForbidden > 0 && _options.EnablePlatformCrossCheck)
+            warnings.Add(
+                "Google Custom Search returned 403 (cse_forbidden). Enable Custom Search API in Google Cloud Console and add it to your API key restrictions.");
+
         var cseSkipped = crossContext.SourcesChecked.Count(s => s.Status == "skipped" && s.SourceId != "google_places");
-        if (cseSkipped > 0 && _options.EnablePlatformCrossCheck)
+        if (cseSkipped > 0 && _options.EnablePlatformCrossCheck && cseForbidden == 0)
             warnings.Add($"{cseSkipped} booking platform(s) could not be verified (search or probe skipped).");
 
         _confidence.ApplyPostEnrichmentScore(detailed, crossContext.CrossSourceConsistencyScore);
@@ -246,7 +264,7 @@ public class VenueAutofillService : IVenueAutofillService
         var officialImage = crossContext.Probes.FirstOrDefault(p => p.SourceId == "official_website")?.ImageUrl;
         var userImage = crossContext.Probes.FirstOrDefault(p => p.SourceId == "user_source")?.ImageUrl;
 
-        var (image, imageSource, imageCandidates, imageWarnings) = _imageResolver.Resolve(
+        var imageResult = _imageResolver.Resolve(
             request,
             mode,
             detailed,
@@ -255,7 +273,31 @@ public class VenueAutofillService : IVenueAutofillService
             officialImage ?? extracted.ImageUrl,
             userImage);
 
-        warnings.AddRange(imageWarnings);
+        var image = imageResult.ImageUrl;
+        var imageSource = imageResult.ImageSource;
+        warnings.AddRange(imageResult.Warnings);
+
+        string? imageOriginalUrl = null;
+        int? imageWidth = null;
+        int? imageHeight = null;
+        string? imageAspectRatio = null;
+
+        if (!string.IsNullOrWhiteSpace(image) && !_options.UseMocks)
+        {
+            var normalizedImage = await _imageNormalizer.NormalizeAndUploadAsync(image, cancellationToken);
+            imageOriginalUrl = ImageUrlNormalizer.SanitizeForResponse(normalizedImage.OriginalUrl ?? "");
+            if (!string.IsNullOrWhiteSpace(normalizedImage.Warning))
+                warnings.Add(normalizedImage.Warning);
+            image = normalizedImage.NormalizedUrl;
+            if (normalizedImage.Succeeded && normalizedImage.Width > 0)
+            {
+                imageWidth = normalizedImage.Width;
+                imageHeight = normalizedImage.Height;
+                imageAspectRatio = "3:2";
+                if (imageSource is not null)
+                    imageSource.Url = image;
+            }
+        }
 
         var hasEffectiveType = VenueTypeHelper.TryResolveEffectiveType(request, detailed, out var venueType, out var venueTypeDisplay);
         var isHotel = hasEffectiveType && venueType == VenueType.Hotel;
@@ -263,15 +305,41 @@ public class VenueAutofillService : IVenueAutofillService
         var zone = _zoneResolver.Resolve(detailed, request.Area);
         if (string.IsNullOrWhiteSpace(zone))
         {
-            zone = request.City;
-            warnings.Add("LA28 zone could not be resolved; using city as location fallback.");
+            zone = string.Empty;
+            warnings.Add("Location could not be mapped to an official LA28 zone.");
         }
+
+        var mergedTimes = HotelFieldMerger.MergeCheckTimes(extracted, crossContext);
+        var checkInTime = mergedTimes.CheckInTime;
+        var checkOutTime = mergedTimes.CheckOutTime;
 
         if (isHotel && mode != RetrievalMode.GooglePlaces)
         {
-            if (string.IsNullOrWhiteSpace(extracted.CheckInTime))
+            if (string.IsNullOrWhiteSpace(checkInTime) || string.IsNullOrWhiteSpace(checkOutTime))
+            {
+                var inferText = extracted.RawText;
+                if (inferText.Length < 200)
+                {
+                    inferText = string.Join(' ',
+                        crossContext.Probes
+                            .Where(p => p.PageFetched)
+                            .Select(p => p.ExtractedName ?? "")
+                            .Where(s => s.Length > 0));
+                }
+
+                var (aiCheckIn, aiCheckOut, usedAi) = await _hotelTimesInference.InferAsync(inferText, cancellationToken);
+                if (usedAi)
+                {
+                    checkInTime ??= aiCheckIn;
+                    checkOutTime ??= aiCheckOut;
+                    if (!string.IsNullOrWhiteSpace(aiCheckIn) || !string.IsNullOrWhiteSpace(aiCheckOut))
+                        warnings.Add("Check-in/out inferred by AI from limited source text.");
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(checkInTime))
                 warnings.Add("Check-in time not found on source website.");
-            if (string.IsNullOrWhiteSpace(extracted.CheckOutTime))
+            if (string.IsNullOrWhiteSpace(checkOutTime))
                 warnings.Add("Check-out time not found on source website.");
             if (amenities.Count == 0)
                 warnings.Add("Amenities not found on source website.");
@@ -302,8 +370,8 @@ public class VenueAutofillService : IVenueAutofillService
                 Name = $"{detailed.Name}, {detailed.City}",
                 VenueType = venueTypeDisplay,
                 Rating = (int)Math.Round(detailed.Rating ?? 0),
-                CheckInTime = isHotel ? extracted.CheckInTime : null,
-                CheckOutTime = isHotel ? extracted.CheckOutTime : null,
+                CheckInTime = isHotel ? checkInTime : null,
+                CheckOutTime = isHotel ? checkOutTime : null,
                 Amenities = amenities,
                 Description = description,
                 Image = image,
@@ -319,9 +387,15 @@ public class VenueAutofillService : IVenueAutofillService
             ConfidenceBreakdown = breakdown,
             SourceUsed = sourceUsed,
             ImageSource = imageSource,
-            ImageCandidates = imageCandidates,
+            ImageCandidates = imageResult.ImageCandidates.Select(c => c.Url).ToList(),
+            ImageCandidateDetails = imageResult.ImageCandidates,
+            ImageVerified = imageResult.ImageVerified,
             SourcesChecked = crossContext.SourcesChecked,
-            Warnings = warnings
+            Warnings = warnings,
+            ImageOriginalUrl = imageOriginalUrl,
+            ImageWidth = imageWidth,
+            ImageHeight = imageHeight,
+            ImageAspectRatio = imageAspectRatio
         };
     }
 

@@ -21,8 +21,8 @@ public static class MockVenueDataService
                 CheckOutTime = "12:00:00",
                 Amenities =
                 [
-                    "Free WiFi", "Outdoor Pool", "Fitness Center", "Restaurant", "Bar",
-                    "Room Service", "Business Center", "Conference Rooms", "Parking", "Pet Friendly"
+                    "Free high-speed internet", "Swimming pool", "Gym/fitness center",
+                    "Cocktail lounge", "Room service", "Meeting event space", "Parking", "Pet friendly"
                 ],
                 Description = "Iconic downtown Los Angeles hotel featuring modern accommodations, panoramic city views, multiple dining options, and extensive meeting and event facilities.",
                 Image = "https://example.com/images/westin-bonaventure-los-angeles.jpg",

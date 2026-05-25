@@ -10,6 +10,9 @@ public class ListingProbeResult
     public string? ExtractedCity { get; set; }
     public string? ExtractedCountry { get; set; }
     public string? ExtractedPhone { get; set; }
+    public string? CheckInTime { get; set; }
+    public string? CheckOutTime { get; set; }
     public bool PageFetched { get; set; }
     public bool ImageReachable { get; set; }
+    public string? FetchedVia { get; set; }
 }

@@ -147,17 +147,20 @@ public class VenueCrossSourceService : IVenueCrossSourceService
     {
         try
         {
-            var listingUrl = await _customSearch.FindListingUrlAsync(request, platform, cancellationToken);
-            if (string.IsNullOrWhiteSpace(listingUrl))
+            var cse = await _customSearch.FindListingAsync(request, platform, cancellationToken);
+            if (!cse.Succeeded)
             {
                 return (new SourceCheckResult
                 {
                     SourceId = platform.PlatformId,
                     Label = platform.Label,
                     Status = "skipped",
-                    Score = 0
+                    Score = 0,
+                    SkipReason = cse.SkipReason ?? "no_listing_found"
                 }, null);
             }
+
+            var listingUrl = cse.Url!;
 
             var probe = await _listingProbe.ProbeAsync(
                 platform.PlatformId,
@@ -229,13 +232,20 @@ public class VenueCrossSourceService : IVenueCrossSourceService
     {
         if (!probe.PageFetched)
         {
+            var skipReason = string.IsNullOrWhiteSpace(probe.Url)
+                ? "no_url"
+                : probe.FetchedVia == "playwright"
+                    ? "page_blocked_bot_protection"
+                    : "page_blocked";
+
             return new SourceCheckResult
             {
                 SourceId = probe.SourceId,
                 Label = probe.Label,
                 Url = probe.Url,
                 Status = string.IsNullOrWhiteSpace(probe.Url) ? "skipped" : "blocked",
-                Score = 0
+                Score = 0,
+                SkipReason = skipReason
             };
         }
 

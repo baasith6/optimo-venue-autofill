@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Options;
@@ -6,7 +5,9 @@ using VenueAutofill.Api.Application.Interfaces;
 using VenueAutofill.Api.Configuration;
 using VenueAutofill.Api.Contracts.Internal;
 using VenueAutofill.Api.Contracts.Requests;
+using VenueAutofill.Api.Infrastructure.Browser;
 using VenueAutofill.Api.Infrastructure.Http;
+using VenueAutofill.Api.Infrastructure.Schema;
 
 namespace VenueAutofill.Api.Infrastructure.Providers;
 
@@ -16,6 +17,7 @@ public class ListingProbeService : IListingProbeService
         @"\+?[\d\s().-]{10,}",
         RegexOptions.Compiled);
 
+    private readonly IHtmlPageFetcher _pageFetcher;
     private readonly HttpClient _httpClient;
     private readonly UrlSafetyValidator _urlSafetyValidator;
     private readonly SourceRelevanceValidator _relevanceValidator;
@@ -23,12 +25,14 @@ public class ListingProbeService : IListingProbeService
     private readonly ILogger<ListingProbeService> _logger;
 
     public ListingProbeService(
+        IHtmlPageFetcher pageFetcher,
         HttpClient httpClient,
         UrlSafetyValidator urlSafetyValidator,
         SourceRelevanceValidator relevanceValidator,
         IOptions<VenueAutofillOptions> options,
         ILogger<ListingProbeService> logger)
     {
+        _pageFetcher = pageFetcher;
         _httpClient = httpClient;
         _urlSafetyValidator = urlSafetyValidator;
         _relevanceValidator = relevanceValidator;
@@ -59,21 +63,34 @@ public class ListingProbeService : IListingProbeService
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(_options.PlatformProbeTimeoutSeconds));
 
-            var html = await _httpClient.GetStringAsync(url, cts.Token);
+            var fetch = await _pageFetcher.FetchAsync(url, cts.Token);
+            result.FetchedVia = fetch.FetchedVia;
+            if (!fetch.Succeeded || string.IsNullOrWhiteSpace(fetch.Html))
+            {
+                _logger.LogWarning(
+                    "Listing probe could not fetch page: {Url}, via={Via}, blocked={Blocked}",
+                    url, fetch.FetchedVia, fetch.LooksBlocked);
+                return result;
+            }
+
             result.PageFetched = true;
             var doc = new HtmlDocument();
-            doc.LoadHtml(html);
+            doc.LoadHtml(fetch.Html);
 
-            result.ImageUrl = ExtractMetaImage(doc, url) ?? ExtractSchemaImage(html);
+            result.ImageUrl = ExtractMetaImage(doc, fetch.FinalUrl);
             result.ExtractedName = doc.DocumentNode.SelectSingleNode("//title")?.InnerText?.Trim();
             var bodyText = Regex.Replace(doc.DocumentNode.InnerText ?? "", @"\s+", " ").Trim();
             if (bodyText.Length > 8000)
                 bodyText = bodyText[..8000];
 
-            ParseSchemaHotel(html, result);
-            result.ExtractedCity ??= TryExtractCity(bodyText, request.City);
-            result.ExtractedCountry ??= TryExtractCountry(bodyText, request.Country);
-            result.ExtractedPhone ??= PhoneRegex.Match(bodyText).Value;
+            var schema = SchemaOrgHotelParser.ParseFromHtml(fetch.Html);
+            result.ExtractedName ??= schema.Name;
+            result.ExtractedCity ??= schema.City ?? TryExtractCity(bodyText, request.City);
+            result.ExtractedCountry ??= schema.Country ?? TryExtractCountry(bodyText, request.Country);
+            result.ExtractedPhone ??= schema.Phone ?? PhoneRegex.Match(bodyText).Value;
+            result.ImageUrl ??= schema.ImageUrl;
+            result.CheckInTime ??= schema.CheckInTime;
+            result.CheckOutTime ??= schema.CheckOutTime;
 
             if (!string.IsNullOrWhiteSpace(result.ImageUrl)
                 && _urlSafetyValidator.IsSafeUrl(result.ImageUrl, out _))
@@ -127,104 +144,6 @@ public class ListingProbeService : IListingProbeService
         }
 
         return null;
-    }
-
-    private static string? ExtractSchemaImage(string html)
-    {
-        foreach (var json in ExtractJsonLdBlocks(html))
-        {
-            if (TryGetSchemaString(json, "image", out var image))
-                return image;
-        }
-
-        return null;
-    }
-
-    private static void ParseSchemaHotel(string html, ListingProbeResult result)
-    {
-        foreach (var json in ExtractJsonLdBlocks(html))
-        {
-            if (!IsLodgingType(json))
-                continue;
-
-            if (TryGetSchemaString(json, "name", out var name))
-                result.ExtractedName = name;
-            if (json.TryGetProperty("address", out var address))
-            {
-                if (address.TryGetProperty("addressLocality", out var city))
-                    result.ExtractedCity = city.GetString();
-                if (address.TryGetProperty("addressCountry", out var country))
-                    result.ExtractedCountry = country.GetString();
-            }
-
-            if (TryGetSchemaString(json, "telephone", out var phone))
-                result.ExtractedPhone = phone;
-            if (TryGetSchemaString(json, "image", out var image))
-                result.ImageUrl ??= image;
-        }
-    }
-
-    private static bool IsLodgingType(JsonElement json)
-    {
-        if (json.TryGetProperty("@type", out var typeEl))
-        {
-            if (typeEl.ValueKind == JsonValueKind.String)
-            {
-                var t = typeEl.GetString() ?? "";
-                return t.Contains("Hotel", StringComparison.OrdinalIgnoreCase)
-                    || t.Contains("Lodging", StringComparison.OrdinalIgnoreCase);
-            }
-        }
-
-        return false;
-    }
-
-    private static bool TryGetSchemaString(JsonElement json, string property, out string? value)
-    {
-        value = null;
-        if (!json.TryGetProperty(property, out var prop))
-            return false;
-
-        value = prop.ValueKind switch
-        {
-            JsonValueKind.String => prop.GetString(),
-            JsonValueKind.Array when prop.GetArrayLength() > 0 && prop[0].ValueKind == JsonValueKind.String => prop[0].GetString(),
-            _ => null
-        };
-
-        return !string.IsNullOrWhiteSpace(value);
-    }
-
-    private static List<JsonElement> ExtractJsonLdBlocks(string html)
-    {
-        var results = new List<JsonElement>();
-        var matches = Regex.Matches(html, @"<script[^>]*type=[""']application/ld\+json[""'][^>]*>(.*?)</script>",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
-        foreach (Match match in matches)
-        {
-            var jsonText = match.Groups[1].Value.Trim();
-            if (string.IsNullOrWhiteSpace(jsonText))
-                continue;
-
-            try
-            {
-                using var doc = JsonDocument.Parse(jsonText);
-                if (doc.RootElement.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in doc.RootElement.EnumerateArray())
-                        results.Add(item.Clone());
-                }
-                else
-                    results.Add(doc.RootElement.Clone());
-            }
-            catch
-            {
-                // skip invalid JSON-LD
-            }
-        }
-
-        return results;
     }
 
     private static string? TryExtractCity(string text, string city) =>

@@ -110,7 +110,13 @@ public class VenueAutofillController : ControllerBase
             ImageSource = outcome.ImageSource,
             SourcesChecked = outcome.SourcesChecked.Count > 0 ? outcome.SourcesChecked : null,
             ImageCandidates = outcome.ImageCandidates.Count > 0 ? outcome.ImageCandidates : null,
-            Warnings = outcome.Warnings.Count > 0 ? outcome.Warnings : null
+            ImageCandidateDetails = outcome.ImageCandidateDetails.Count > 0 ? outcome.ImageCandidateDetails : null,
+            ImageVerified = outcome.ImageVerified,
+            Warnings = outcome.Warnings.Count > 0 ? outcome.Warnings : null,
+            ImageOriginalUrl = outcome.ImageOriginalUrl,
+            ImageWidth = outcome.ImageWidth,
+            ImageHeight = outcome.ImageHeight,
+            ImageAspectRatio = outcome.ImageAspectRatio
         };
     }
 }

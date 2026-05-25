@@ -13,4 +13,7 @@ public class SourceCheckResult
     public string Status { get; set; } = "skipped";
     public int Score { get; set; }
     public List<string> MatchedFields { get; set; } = [];
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SkipReason { get; set; }
 }

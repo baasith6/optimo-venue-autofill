@@ -24,6 +24,12 @@ public class VenueAutofillOutcome
     public string? SourceUsed { get; set; }
     public ImageSourceInfo? ImageSource { get; set; }
     public List<string> ImageCandidates { get; set; } = [];
+    public List<ImageCandidateDetail> ImageCandidateDetails { get; set; } = [];
+    public bool? ImageVerified { get; set; }
     public List<SourceCheckResult> SourcesChecked { get; set; } = [];
     public List<string> Warnings { get; set; } = [];
+    public string? ImageOriginalUrl { get; set; }
+    public int? ImageWidth { get; set; }
+    public int? ImageHeight { get; set; }
+    public string? ImageAspectRatio { get; set; }
 }

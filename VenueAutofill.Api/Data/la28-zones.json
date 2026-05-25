@@ -1,32 +1,115 @@
 [
   {
-    "zoneName": "Inglewood Zone",
-    "keywords": ["Inglewood", "Hollywood Park", "SoFi Stadium", "Intuit Dome"],
-    "bounds": {
-      "minLat": 33.92,
-      "maxLat": 33.98,
-      "minLng": -118.38,
-      "maxLng": -118.32
-    }
+    "zoneName": "DTLA Zone",
+    "keywords": ["dtla", "downtown los angeles", "downtown la", "los angeles convention center", "crypto.com arena", "figueroa", "bonaventure", "little tokyo", "arts district los angeles"],
+    "bounds": { "minLat": 34.03, "maxLat": 34.07, "minLng": -118.28, "maxLng": -118.24 }
   },
   {
-    "zoneName": "DTLA Zone",
-    "keywords": ["Downtown Los Angeles", "DTLA", "Crypto.com Arena", "Los Angeles Convention Center", "Figueroa", "Bonaventure"],
-    "bounds": {
-      "minLat": 34.03,
-      "maxLat": 34.07,
-      "minLng": -118.28,
-      "maxLng": -118.24
-    }
+    "zoneName": "Exposition Park Zone",
+    "keywords": ["exposition park", "usc", "los angeles memorial coliseum", "bmo stadium", "galen center", "university park"],
+    "bounds": { "minLat": 34.01, "maxLat": 34.03, "minLng": -118.30, "maxLng": -118.27 }
+  },
+  {
+    "zoneName": "Port of Los Angeles Zone",
+    "keywords": ["port of los angeles", "san pedro", "wilmington los angeles", "la port", "ports o call"],
+    "bounds": { "minLat": 33.72, "maxLat": 33.78, "minLng": -118.30, "maxLng": -118.25 }
+  },
+  {
+    "zoneName": "Riviera Zone",
+    "keywords": ["riviera", "pacific palisades", "riviera country club", "brentwood los angeles", "santa monica canyon"],
+    "bounds": { "minLat": 34.04, "maxLat": 34.08, "minLng": -118.55, "maxLng": -118.48 }
+  },
+  {
+    "zoneName": "Universal City Zone",
+    "keywords": ["universal city", "universal studios", "studio city", "universal citywalk", "cahuenga pass"],
+    "bounds": { "minLat": 34.12, "maxLat": 34.15, "minLng": -118.37, "maxLng": -118.34 }
+  },
+  {
+    "zoneName": "Valley Zone",
+    "keywords": ["san fernando valley", "the valley", "north hollywood", "van nuys", "sherman oaks", "encino", "woodland hills", "burbank"],
+    "bounds": { "minLat": 34.15, "maxLat": 34.22, "minLng": -118.45, "maxLng": -118.35 }
+  },
+  {
+    "zoneName": "Venice Zone",
+    "keywords": ["venice beach", "venice los angeles", "venice boardwalk", "marina del rey"],
+    "bounds": { "minLat": 33.98, "maxLat": 34.02, "minLng": -118.48, "maxLng": -118.44 }
   },
   {
     "zoneName": "Carson Zone",
-    "keywords": ["Carson", "Dignity Health Sports Park"],
-    "bounds": {
-      "minLat": 33.81,
-      "maxLat": 33.87,
-      "minLng": -118.29,
-      "maxLng": -118.24
-    }
+    "keywords": ["carson", "dignity health sports park", "cal state dominguez hills"],
+    "bounds": { "minLat": 33.81, "maxLat": 33.87, "minLng": -118.29, "maxLng": -118.24 }
+  },
+  {
+    "zoneName": "Inglewood Zone",
+    "keywords": ["inglewood", "sofi stadium", "intuit dome", "hollywood park", "forum inglewood"],
+    "bounds": { "minLat": 33.92, "maxLat": 33.98, "minLng": -118.38, "maxLng": -118.32 }
+  },
+  {
+    "zoneName": "Long Beach Zone",
+    "keywords": ["long beach", "downtown long beach", "queen mary long beach", "long beach convention center"],
+    "bounds": { "minLat": 33.75, "maxLat": 33.87, "minLng": -118.22, "maxLng": -118.10 }
+  },
+  {
+    "zoneName": "Pasadena Zone",
+    "keywords": ["pasadena", "rose bowl", "old town pasadena", "caltech"],
+    "bounds": { "minLat": 34.12, "maxLat": 34.17, "minLng": -118.18, "maxLng": -118.12 }
+  },
+  {
+    "zoneName": "Anaheim Zone",
+    "keywords": ["anaheim", "disneyland", "angel stadium", "honda center", "anaheim convention center"],
+    "bounds": { "minLat": 33.80, "maxLat": 33.87, "minLng": -117.95, "maxLng": -117.88 }
+  },
+  {
+    "zoneName": "Arcadia Zone",
+    "keywords": ["arcadia", "santa anita park", "los angeles county arboretum"],
+    "bounds": { "minLat": 34.12, "maxLat": 34.15, "minLng": -118.06, "maxLng": -118.02 }
+  },
+  {
+    "zoneName": "City of Industry Zone",
+    "keywords": ["city of industry", "industry california", "la puente", "hacienda heights"],
+    "bounds": { "minLat": 34.00, "maxLat": 34.05, "minLng": -117.98, "maxLng": -117.92 }
+  },
+  {
+    "zoneName": "Pomona Zone",
+    "keywords": ["pomona", "fairplex", "cal poly pomona", "pomona fairplex"],
+    "bounds": { "minLat": 34.04, "maxLat": 34.09, "minLng": -117.78, "maxLng": -117.72 }
+  },
+  {
+    "zoneName": "Trestles Beach Zone",
+    "keywords": ["trestles", "trestles beach", "san clemente", "san onofre"],
+    "bounds": { "minLat": 33.38, "maxLat": 33.45, "minLng": -117.65, "maxLng": -117.58 }
+  },
+  {
+    "zoneName": "Whittier Narrows Zone",
+    "keywords": ["whittier narrows", "whittier", "pico rivera", "montebello", "south el monte"],
+    "bounds": { "minLat": 33.98, "maxLat": 34.04, "minLng": -118.08, "maxLng": -118.02 }
+  },
+  {
+    "zoneName": "OKC Zone",
+    "keywords": ["oklahoma city", "okc", "oklahoma city ok", "paycom center", "bricktown okc"]
+  },
+  {
+    "zoneName": "New York Zone",
+    "keywords": ["new york", "new york city", "nyc", "manhattan", "brooklyn", "queens", "bronx", "staten island"]
+  },
+  {
+    "zoneName": "Columbus Zone",
+    "keywords": ["columbus ohio", "columbus oh", "ohio state", "greater columbus", "columbus ohio usa"]
+  },
+  {
+    "zoneName": "Nashville Zone",
+    "keywords": ["nashville", "nashville tn", "music city", "downtown nashville", "nissan stadium nashville"]
+  },
+  {
+    "zoneName": "St. Louis Zone",
+    "keywords": ["st. louis", "st louis", "saint louis", "st louis mo", "gateway arch", "downtown st. louis"]
+  },
+  {
+    "zoneName": "San José Zone",
+    "keywords": ["san jose", "san josé", "san jose ca", "sap center", "downtown san jose"]
+  },
+  {
+    "zoneName": "San Diego Zone",
+    "keywords": ["san diego", "downtown san diego", "petco park", "san diego convention center", "gaslamp quarter"]
   }
 ]

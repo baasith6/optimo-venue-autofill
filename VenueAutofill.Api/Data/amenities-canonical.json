@@ -1,0 +1,58 @@
+[
+  {
+    "canonical": "Free high-speed internet",
+    "aliases": ["free high-speed internet", "free high speed internet", "high-speed internet", "high speed internet", "free wifi", "free wi-fi", "wifi", "wi-fi", "wireless internet", "wireless", "complimentary internet", "internet access", "free internet"]
+  },
+  {
+    "canonical": "Gym/fitness center",
+    "aliases": ["gym/fitness center", "gym", "fitness center", "fitness centre", "fitness", "health club", "exercise room", "workout room", "fitness room"]
+  },
+  {
+    "canonical": "Complimentary breakfast",
+    "aliases": ["complimentary breakfast", "free breakfast", "breakfast included", "breakfast complimentary", "continental breakfast", "buffet breakfast", "included breakfast"]
+  },
+  {
+    "canonical": "Swimming pool",
+    "aliases": ["swimming pool", "pool", "outdoor pool", "indoor pool", "heated pool", "infinity pool"]
+  },
+  {
+    "canonical": "Parking",
+    "aliases": ["parking", "free parking", "onsite parking", "on-site parking", "self parking", "valet parking", "valet", "car park", "parking available", "complimentary parking"]
+  },
+  {
+    "canonical": "Pet friendly",
+    "aliases": ["pet friendly", "pets allowed", "pet-friendly", "dog friendly", "pets welcome", "allows pets"]
+  },
+  {
+    "canonical": "Meeting event space",
+    "aliases": ["meeting event space", "meeting space", "event space", "conference room", "conference rooms", "conference", "meeting room", "meeting rooms", "banquet", "banquet hall", "ballroom", "business center", "convention"]
+  },
+  {
+    "canonical": "Room service",
+    "aliases": ["room service", "in-room dining", "24-hour room service"]
+  },
+  {
+    "canonical": "Laundry service",
+    "aliases": ["laundry service", "laundry", "dry cleaning", "dry-cleaning", "laundry facilities", "coin laundry", "self-service laundry"]
+  },
+  {
+    "canonical": "Spa",
+    "aliases": ["spa", "full-service spa", "spa services", "spa and wellness", "wellness spa"]
+  },
+  {
+    "canonical": "Barber",
+    "aliases": ["barber", "barber shop", "barbershop", "hair salon", "salon"]
+  },
+  {
+    "canonical": "Concierge desk",
+    "aliases": ["concierge desk", "concierge", "concierge service", "front desk concierge"]
+  },
+  {
+    "canonical": "Cocktail lounge",
+    "aliases": ["cocktail lounge", "lounge", "bar", "hotel bar", "cocktail bar", "rooftop bar", "lounge bar", "the bar"]
+  },
+  {
+    "canonical": "Mobility accessible rooms",
+    "aliases": ["mobility accessible rooms", "accessible rooms", "wheelchair accessible", "wheelchair access", "ada accessible", "ada compliant", "handicap accessible", "mobility accessible", "accessible", "disability access"]
+  }
+]

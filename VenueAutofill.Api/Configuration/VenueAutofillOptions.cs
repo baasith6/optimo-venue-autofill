@@ -20,4 +20,6 @@ public class VenueAutofillOptions
     public int PlatformProbeTimeoutSeconds { get; set; } = 8;
     public int MaxConcurrentProbes { get; set; } = 4;
     public int RequestTimeoutSeconds { get; set; } = 45;
+    public int MinImageConfidenceScore { get; set; } = 70;
+    public bool RequireCrossSourceImageAgreement { get; set; }
 }
